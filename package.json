@@ -1,0 +1,16 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -F playground dev",
+    "build:wasm": "cd packages/wasm && wasm-pack build --target web",
+    "build": "pnpm -F sweet-subtitle build",
+    "test": "pnpm -F sweet-subtitle test",
+    "typecheck": "pnpm -F sweet-subtitle typecheck"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
