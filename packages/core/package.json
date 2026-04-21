@@ -1,6 +1,6 @@
 {
   "name": "sweet-subtitle",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Browser subtitle library with full ASS/SSA rendering support",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -19,6 +19,8 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
+    "prepublishOnly": "cp ../../README.md . && pnpm build",
+    "postpublish": "rm -f README.md",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

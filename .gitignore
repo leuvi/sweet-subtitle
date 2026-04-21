@@ -5,3 +5,5 @@ target/
 .DS_Store
 *.tsbuildinfo
 .claude/
+CLAUDE.md
+素材/
