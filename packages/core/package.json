@@ -1,6 +1,6 @@
 {
   "name": "sweet-subtitle",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Browser subtitle library with full ASS/SSA rendering support",
   "type": "module",
   "main": "./dist/index.cjs",
