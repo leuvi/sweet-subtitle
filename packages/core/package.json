@@ -36,6 +36,15 @@
     "caption"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leuvi/sweet-subtitle.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/leuvi/sweet-subtitle",
+  "bugs": {
+    "url": "https://github.com/leuvi/sweet-subtitle/issues"
+  },
   "devDependencies": {
     "tsup": "^8.4.0",
     "typescript": "~5.8.0",
