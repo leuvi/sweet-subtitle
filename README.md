@@ -6,8 +6,12 @@ Browser subtitle rendering library with full ASS/SSA support, powered by Canvas 
 
 - **Multi-format** — SRT, WebVTT, ASS/SSA
 - **ASS advanced rendering** — styles, positioning (`\pos`, `\move`, `\org`), rotation (`\frz/frx/fry`), animation (`\t` with accel), karaoke (`\k/\kf/\ko`), clip (`\clip/\iclip`), drawing commands (`\p`), fade (`\fad/\fade`), per-character alpha, border styles, etc.
+- **Gaussian blur** — `\blur` and `\be` rendered via Rust WASM (3-pass box blur), with CSS filter fallback
+- **Text decorations** — underline (`\u`), strikeout (`\s`)
+- **Scale transforms** — horizontal scale (`\fscx`), vertical scale (`\fscy`)
+- **Auto text wrapping** — long lines wrap within video bounds
 - **Encoding detection** — UTF-8, UTF-16LE/BE (with BOM), GBK auto-detection
-- **Rust WASM module** — Gaussian blur and drawing rasterization offloaded to WebAssembly, with JS fallback
+- **Rust WASM bundled** — WASM binary ships inside the package, zero extra config for users
 - **Lightweight** — zero runtime dependencies, tree-shakeable ESM/CJS dual output
 - **Resilient parsing** — tolerates malformed ASS files (wrong Format lines, missing PlayRes, case-insensitive sections, BOM, flexible timestamps)
 
@@ -16,6 +20,8 @@ Browser subtitle rendering library with full ASS/SSA support, powered by Canvas 
 ```bash
 npm install sweet-subtitle
 ```
+
+The WASM binary is bundled inside the package — no extra setup needed.
 
 ## Quick Start
 
@@ -89,6 +95,8 @@ console.log(track.cues) // [{ id, start, end, text }, ...]
 sweet-subtitle/
 ├── packages/
 │   ├── core/                  # npm package "sweet-subtitle"
+│   │   ├── scripts/
+│   │   │   └── setup-wasm.mjs # copies wasm-pack output into src before build
 │   │   └── src/
 │   │       ├── parser/        # SRT / VTT / ASS parsers
 │   │       ├── renderer/      # Canvas 2D renderers (text + ASS)
@@ -109,6 +117,9 @@ sweet-subtitle/
 # Install dependencies
 pnpm install
 
+# Build WASM (requires Rust + wasm-pack)
+pnpm build:wasm
+
 # Build the library
 pnpm build
 
@@ -121,9 +132,11 @@ pnpm typecheck
 # Run tests
 pnpm test
 
-# Build WASM (requires Rust + wasm-pack)
-pnpm build:wasm
+# Publish to npm (bumps version first, then builds + publishes)
+pnpm run release
 ```
+
+> **Note:** `pnpm build:wasm` must be run at least once before `pnpm build` or `pnpm run release`. The `prepublishOnly` hook rebuilds WASM automatically on every publish.
 
 ## Supported ASS Override Tags
 
@@ -136,6 +149,7 @@ pnpm build:wasm
 | `\c`, `\1c`-`\4c` | Colors (primary, secondary, outline, shadow) |
 | `\alpha`, `\1a`-`\4a` | Alpha channels |
 | `\bord`, `\shad` | Border, shadow |
+| `\blur`, `\be` | Gaussian blur (WASM-accelerated) |
 | `\pos`, `\move`, `\org` | Position, animation, rotation origin |
 | `\an`, `\a` | Alignment (numpad / legacy) |
 | `\fad`, `\fade` | Fade in/out (2-param and 7-param) |
@@ -144,7 +158,6 @@ pnpm build:wasm
 | `\k`, `\kf`, `\ko`, `\K` | Karaoke effects |
 | `\p` | Drawing mode |
 | `\r` | Style reset |
-| `\blur`, `\be` | Blur |
 
 ## License
 
