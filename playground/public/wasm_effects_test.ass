@@ -1,0 +1,80 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1280
+PlayResY: 720
+Timer: 100.0000
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,30,30,40,1
+Style: Title,Arial,36,&H0026F4FF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,2,0,1,0,0,8,30,30,30,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+
+; ── 第一段：普通文字（无 blur，对照组）──
+Dialogue: 0,0:00:01.00,0:00:04.00,Default,,0,0,0,,{\an2}普通文字 Normal Text（无 blur 对照）
+
+; ── 第二段：轻度 blur（\blur3）──
+Dialogue: 0,0:00:04.50,0:00:08.00,Default,,0,0,0,,{\an2\blur3}轻度模糊 \blur3 — WASM Gaussian Blur
+
+; ── 第三段：强 blur（\blur8）──
+Dialogue: 0,0:00:08.50,0:00:12.00,Default,,0,0,0,,{\an2\blur8}强模糊 \blur8 — 明显边缘扩散
+
+; ── 第四段：动画 blur 渐清晰（\t 动画）──
+Dialogue: 0,0:00:12.50,0:00:17.00,Default,,0,0,0,,{\an2\blur12\t(0,1500,\blur0)}从模糊到清晰动画 — \blur12 \t(\blur0)
+
+; ── 第五段：辉光效果（大 blur + 高对比度颜色）──
+Dialogue: 0,0:00:17.50,0:00:22.00,Default,,0,0,0,,{\an2\c&H00FFFF&\blur6\bord0\shad0}青色辉光文字 Glow Effect \blur6
+
+; ── 第六段：描边 + blur 组合（常见 ASS 效果）──
+Dialogue: 0,0:00:22.50,0:00:27.00,Default,,0,0,0,,{\an2\bord3\blur4\3c&H0000FF&\c&HFFFFFF&}描边模糊 Outline+Blur — \bord3 \blur4
+
+; ── 第七段：\fscx 水平拉伸 ──
+Dialogue: 0,0:00:27.50,0:00:31.00,Default,,0,0,0,,{\an2\fscx200}水平拉伸 ScaleX 200%
+
+Dialogue: 0,0:00:31.50,0:00:35.00,Default,,0,0,0,,{\an2\fscx50}水平压缩 ScaleX 50%
+
+; ── 第八段：下划线 + 删除线 ──
+Dialogue: 0,0:00:35.50,0:00:39.00,Default,,0,0,0,,{\an2\u1}下划线文字 Underline
+
+Dialogue: 0,0:00:39.50,0:00:43.00,Default,,0,0,0,,{\an2\s1}删除线文字 Strikeout
+
+Dialogue: 0,0:00:43.50,0:00:47.00,Default,,0,0,0,,{\an2\u1\s1\blur2}下划线+删除线+blur 组合
+
+; ── 第九段：矩形绘图命令（\p1）不带 blur ──
+Dialogue: 0,0:00:48.00,0:00:52.00,Default,,0,0,0,,{\an5\pos(640,360)\p1\c&H00AA00&\bord2\shad0}m 0 0 l 200 0 l 200 80 l 0 80{\p0}
+Dialogue: 0,0:00:48.00,0:00:52.00,Title,,0,0,0,,{\an2}矩形绘图 \p1（无 blur）
+
+; ── 第十段：矩形绘图 + \blur4（WASM 两条路径都走）──
+Dialogue: 0,0:00:52.50,0:00:57.00,Default,,0,0,0,,{\an5\pos(640,360)\p1\c&HCC4400&\bord0\shad0\blur4}m 0 0 l 200 0 l 200 80 l 0 80{\p0}
+Dialogue: 0,0:00:52.50,0:00:57.00,Title,,0,0,0,,{\an2}矩形绘图 + \blur4（WASM 高斯模糊）
+
+; ── 第十一段：圆角矩形（贝塞尔曲线 \p1）+ 动画 blur ──
+Dialogue: 0,0:00:57.50,0:01:02.00,Default,,0,0,0,,{\an5\pos(640,340)\p1\c&H4444FF&\bord0\shad0\blur8\t(0,1200,\blur1)}m 30 0 b 14 0 0 14 0 30 l 0 70 b 0 86 14 100 30 100 l 170 100 b 186 100 200 86 200 70 l 200 30 b 200 14 186 0 170 0{\p0}
+Dialogue: 0,0:00:57.50,0:01:02.00,Default,,0,0,0,,{\an5\pos(640,340)\blur8\t(0,1200,\blur1)}WASM
+Dialogue: 0,0:00:57.50,0:01:02.00,Title,,0,0,0,,{\an2}圆角矩形渐清晰 — 贝塞尔曲线 + 动画 blur
+
+; ── 第十二段：高斯辉光叠字（同位置不同 blur 层叠）──
+Dialogue: 0,0:01:03.00,0:01:08.00,Default,,0,0,0,,{\an5\pos(640,360)\c&H00FFFF&\bord0\shad0\blur15\fs72}GLOW
+Dialogue: 0,0:01:03.00,0:01:08.00,Default,,0,0,0,,{\an5\pos(640,360)\c&HFFFFFF&\bord1\shad0\blur0\fs72}GLOW
+Dialogue: 0,0:01:03.00,0:01:08.00,Title,,0,0,0,,{\an2}双层辉光 — 底层 \blur15 + 顶层清晰
+
+; ── 第十三段：\be（边缘模糊，不同于 \blur）──
+Dialogue: 0,0:01:09.00,0:01:13.00,Default,,0,0,0,,{\an2\be3}边缘软化 \be3 — Edge Blur
+
+Dialogue: 0,0:01:13.50,0:01:18.00,Default,,0,0,0,,{\an2\be1\blur2}混合 \be1 + \blur2
+
+; ── 第十四段：3D 旋转近似 ──
+Dialogue: 0,0:01:19.00,0:01:23.00,Default,,0,0,0,,{\an5\pos(640,360)\frz30}frz 2D 旋转 30°
+
+Dialogue: 0,0:01:24.00,0:01:28.00,Default,,0,0,0,,{\an5\pos(640,360)\frx40}frx X轴 3D 旋转近似 40°
+
+Dialogue: 0,0:01:29.00,0:01:33.00,Default,,0,0,0,,{\an5\pos(640,360)\fry30}fry Y轴 3D 旋转近似 30°
+
+; ── 第十五段：综合效果展示 ──
+Dialogue: 0,0:01:35.00,0:01:42.00,Default,,0,0,0,,{\an5\pos(640,300)\p1\c&HFF8800&\bord0\shad0\blur6\t(0,800,\blur1)\fad(300,300)}m 30 0 b 14 0 0 14 0 30 l 0 50 b 0 66 14 80 30 80 l 170 80 b 186 80 200 66 200 50 l 200 30 b 200 14 186 0 170 0{\p0}
+Dialogue: 0,0:01:35.00,0:01:42.00,Default,,0,0,0,,{\an5\pos(640,300)\blur6\t(0,800,\blur0)\fad(300,300)\c&HFFFFFF&\bord0}综合
+Dialogue: 0,0:01:35.00,0:01:42.00,Default,,0,0,0,,{\an2\fscx130\blur3\t(0,800,\blur0)\u1\fad(300,300)\c&H00FFFF&}scaleX + blur动画 + 下划线

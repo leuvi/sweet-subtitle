@@ -4,6 +4,7 @@ import type {
 } from '../../types'
 import { BaseRenderer } from '../base'
 import { parseASSColor } from '../../parser/ass'
+import { loadWasm, getWasm } from '../../wasm/bridge'
 
 interface ComputedStyle {
   fontname: string
@@ -75,6 +76,7 @@ export class ASSRenderer extends BaseRenderer {
     for (const style of track.styles) {
       this.styleMap.set(style.name, style)
     }
+    loadWasm()
   }
 
   syncSize(): void {
@@ -250,10 +252,14 @@ export class ASSRenderer extends BaseRenderer {
 
     const karaokeStartTime = this.collectKaraokeTimings(dialogue)
 
+    const marginL = (dialogue.marginL || style.marginL) * this.scaleX
+    const marginR = (dialogue.marginR || style.marginR) * this.scaleX
+    const maxWidth = layout.positioned ? 0 : w - marginL - marginR
+
     for (let li = lines.length - 1; li >= 0; li--) {
       const blocks = lines[li]
-      this.renderLine(ctx, blocks, baseComputed, x, y, alignment, fontSize, time, dialogue, karaokeStartTime)
-      y -= lineHeight
+      const extraLines = this.renderLine(ctx, blocks, baseComputed, x, y, alignment, fontSize, time, dialogue, karaokeStartTime, maxWidth, layout.positioned)
+      y -= lineHeight * (1 + extraLines)
     }
 
     ctx.restore()
@@ -269,7 +275,9 @@ export class ASSRenderer extends BaseRenderer {
     time: number,
     dialogue: ASSDialogue,
     karaokeBase: number,
-  ): void {
+    maxWidth: number,
+    positioned: boolean,
+  ): number {
     const current = { ...baseStyle }
     const segments: TextSegment[] = []
     let karaokeAccum = karaokeBase
@@ -287,7 +295,8 @@ export class ASSRenderer extends BaseRenderer {
       if (block.text) {
         const isDrawing = current.drawingMode > 0
         ctx.font = this.buildFont(current, fontSize)
-        const width = isDrawing ? 0 : ctx.measureText(block.text).width
+        const rawWidth = isDrawing ? 0 : ctx.measureText(block.text).width
+        const width = rawWidth * (current.scaleX / 100)
 
         segments.push({
           text: block.text,
@@ -307,6 +316,10 @@ export class ASSRenderer extends BaseRenderer {
     let totalWidth = 0
     for (const seg of segments) totalWidth += seg.width
 
+    if (!positioned && maxWidth > 0 && totalWidth > maxWidth) {
+      return this.renderWrappedLine(ctx, segments, x, y, alignment, fontSize, time, dialogue, maxWidth)
+    }
+
     const col = alignment % 3
     let drawX: number
     if (col === 0) drawX = x - totalWidth
@@ -321,6 +334,95 @@ export class ASSRenderer extends BaseRenderer {
       this.renderSegment(ctx, seg, drawX, y, fontSize, time, dialogue)
       drawX += seg.width
     }
+    return 0
+  }
+
+  private renderWrappedLine(
+    ctx: CanvasRenderingContext2D,
+    segments: TextSegment[],
+    x: number, y: number,
+    alignment: number,
+    fontSize: number,
+    time: number,
+    dialogue: ASSDialogue,
+    maxWidth: number,
+  ): number {
+    const subLines: TextSegment[][] = []
+    let currentLine: TextSegment[] = []
+    let lineWidth = 0
+
+    for (const seg of segments) {
+      if (seg.isDrawing) {
+        currentLine.push(seg)
+        continue
+      }
+
+      ctx.font = this.buildFont(seg.style, fontSize)
+
+      if (lineWidth + seg.width <= maxWidth) {
+        currentLine.push(seg)
+        lineWidth += seg.width
+        continue
+      }
+
+      let remaining = seg.text
+      while (remaining.length > 0) {
+        const availWidth = maxWidth - lineWidth
+        let fit = ''
+        let fitWidth = 0
+
+        for (const char of remaining) {
+          const charW = ctx.measureText(char).width
+          if (fitWidth + charW > availWidth && (fit.length > 0 || currentLine.length > 0)) break
+          fit += char
+          fitWidth += charW
+        }
+
+        if (fit.length > 0) {
+          currentLine.push({
+            ...seg,
+            text: fit,
+            width: fitWidth,
+          })
+          lineWidth += fitWidth
+        }
+
+        remaining = remaining.slice(fit.length)
+        if (remaining.length > 0) {
+          subLines.push(currentLine)
+          currentLine = []
+          lineWidth = 0
+        }
+      }
+    }
+    if (currentLine.length > 0) subLines.push(currentLine)
+
+    const lineHeight = fontSize * 1.3
+    const extraLines = subLines.length - 1
+    let drawY = y - extraLines * lineHeight
+
+    for (const line of subLines) {
+      let tw = 0
+      for (const seg of line) tw += seg.width
+
+      const col = alignment % 3
+      let drawX: number
+      if (col === 0) drawX = x - tw
+      else if (col === 1) drawX = x
+      else drawX = x - tw / 2
+
+      for (const seg of line) {
+        if (seg.isDrawing) {
+          this.renderDrawing(ctx, seg.text, seg.style, drawX, drawY, fontSize)
+          continue
+        }
+        this.renderSegment(ctx, seg, drawX, drawY, fontSize, time, dialogue)
+        drawX += seg.width
+      }
+      drawY += lineHeight
+    }
+
+    return extraLines
   }
 
   private renderSegment(
@@ -342,16 +444,30 @@ export class ASSRenderer extends BaseRenderer {
       return
     }
 
-    if (s.angle !== 0 || s.angleX !== 0 || s.angleY !== 0) {
+    const needsTransform = s.angle !== 0 || s.angleX !== 0 || s.angleY !== 0 || s.scaleX !== 100
+    if (needsTransform) {
       ctx.save()
-      ctx.translate(x + seg.width / 2, y - fontSize / 2)
+      const cx = x + seg.width / 2
+      const cy = y - fontSize / 2
+      ctx.translate(cx, cy)
+
+      if (s.angleX !== 0 || s.angleY !== 0) {
+        const radX = s.angleX * Math.PI / 180
+        const radY = s.angleY * Math.PI / 180
+        const cosX = Math.cos(radX)
+        const cosY = Math.cos(radY)
+        ctx.transform(cosY, Math.sin(radX) * 0.5, -Math.sin(radY) * 0.5, cosX, 0, 0)
+      }
+
       if (s.angle !== 0) ctx.rotate(s.angle * Math.PI / 180)
-      ctx.translate(-(x + seg.width / 2), -(y - fontSize / 2))
+      if (s.scaleX !== 100) ctx.scale(s.scaleX / 100, 1)
+
+      ctx.translate(-cx, -cy)
     }
 
-    this.drawTextWithEffects(ctx, seg.text, x, y, s, fontSize, alpha)
+    this.drawTextWithEffects(ctx, seg.text, x, y, s, fontSize, alpha, seg.width)
 
-    if (s.angle !== 0 || s.angleX !== 0 || s.angleY !== 0) {
+    if (needsTransform) {
       ctx.restore()
     }
   }
@@ -360,6 +476,23 @@ export class ASSRenderer extends BaseRenderer {
     ctx: CanvasRenderingContext2D,
     text: string, x: number, y: number,
     s: ComputedStyle, fontSize: number, alpha: number,
+    segWidth?: number,
+  ): void {
+    const blurRadius = s.blur > 0 ? s.blur * this.scaleX : s.be > 0 ? s.be * this.scaleX : 0
+
+    if (blurRadius > 0) {
+      this.drawTextBlurred(ctx, text, x, y, s, fontSize, alpha, blurRadius, segWidth)
+      return
+    }
+
+    this.drawTextDirect(ctx, text, x, y, s, fontSize, alpha, segWidth)
+  }
+
+  private drawTextDirect(
+    ctx: CanvasRenderingContext2D,
+    text: string, x: number, y: number,
+    s: ComputedStyle, fontSize: number, alpha: number,
+    segWidth?: number,
   ): void {
     const spacing = s.spacing * this.scaleX
 
@@ -402,6 +535,87 @@ export class ASSRenderer extends BaseRenderer {
       this.fillTextSpaced(ctx, text, x, y, spacing)
     } else {
       ctx.fillText(text, x, y)
+    }
+
+    const textW = segWidth ?? ctx.measureText(text).width
+    this.drawTextDecorations(ctx, x, y, textW, s, fontSize)
+  }
+
+  private drawTextBlurred(
+    ctx: CanvasRenderingContext2D,
+    text: string, x: number, y: number,
+    s: ComputedStyle, fontSize: number, alpha: number,
+    blurRadius: number,
+    segWidth?: number,
+  ): void {
+    const padding = Math.ceil(blurRadius * 3)
+    const textW = segWidth ?? ctx.measureText(text).width
+    const extraOutline = s.outline > 0 ? s.outline * 2 * this.scaleX : 0
+    const extraShadow = s.shadow > 0 ? Math.abs(s.shadow) * this.scaleX : 0
+    const bw = Math.ceil(textW + extraOutline + extraShadow + padding * 2)
+    const bh = Math.ceil(fontSize * 1.5 + extraOutline + extraShadow + padding * 2)
+
+    if (bw <= 0 || bh <= 0) return
+
+    const dpr = window.devicePixelRatio || 1
+    const offscreen = new OffscreenCanvas(bw * dpr, bh * dpr)
+    const offCtx = offscreen.getContext('2d')!
+    offCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    offCtx.font = ctx.font
+    offCtx.textBaseline = 'bottom'
+
+    const ox = padding + extraOutline / 2
+    const oy = padding + fontSize + extraOutline / 2
+
+    const savedAlpha = ctx.globalAlpha
+    offCtx.globalAlpha = savedAlpha
+    this.drawTextDirect(offCtx as unknown as CanvasRenderingContext2D, text, ox, oy, s, fontSize, alpha, segWidth)
+
+    const imgData = offCtx.getImageData(0, 0, bw * dpr, bh * dpr)
+    const wasm = getWasm()
+    if (wasm) {
+      const data = new Uint8Array(imgData.data.buffer)
+      wasm.gaussian_blur(data, imgData.width, imgData.height, blurRadius * dpr)
+      offCtx.putImageData(imgData, 0, 0)
+    } else {
+      offCtx.clearRect(0, 0, bw * dpr, bh * dpr)
+      offCtx.filter = `blur(${blurRadius}px)`
+      offCtx.putImageData(imgData, 0, 0)
+      offCtx.drawImage(offscreen, 0, 0)
+      offCtx.filter = 'none'
+    }
+
+    ctx.globalAlpha = savedAlpha
+    ctx.drawImage(offscreen, x - ox, y - oy, bw, bh)
+  }
+
+  private drawTextDecorations(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number,
+    textWidth: number,
+    s: ComputedStyle, fontSize: number,
+  ): void {
+    if (!s.underline && !s.strikeOut) return
+
+    ctx.strokeStyle = assColorToCSS(s.primaryColor, s.primaryAlpha)
+    ctx.lineWidth = Math.max(1, fontSize * 0.05)
+    ctx.lineJoin = 'round'
+
+    if (s.underline) {
+      const uy = y + fontSize * 0.08
+      ctx.beginPath()
+      ctx.moveTo(x, uy)
+      ctx.lineTo(x + textWidth, uy)
+      ctx.stroke()
+    }
+
+    if (s.strikeOut) {
+      const sy = y - fontSize * 0.35
+      ctx.beginPath()
+      ctx.moveTo(x, sy)
+      ctx.lineTo(x + textWidth, sy)
+      ctx.stroke()
     }
   }
 

@@ -15,11 +15,11 @@
   },
   "files": [
     "dist"
-  ],
-  "scripts": {
+  ],  "scripts": {
     "dev": "tsup --watch",
+    "prebuild": "node scripts/setup-wasm.mjs",
     "build": "tsup",
-    "prepublishOnly": "cp ../../README.md . && pnpm build",
+    "prepublishOnly": "cp ../../README.md . && pnpm -w build:wasm && pnpm build",
     "postpublish": "rm -f README.md",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

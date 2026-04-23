@@ -1,3 +1,6 @@
+import { gaussian_blur, rasterize_drawing } from './wasm_module'
+import init from './wasm_module'
+
 type WasmModule = {
   gaussian_blur: (data: Uint8Array, width: number, height: number, radius: number) => void
   rasterize_drawing: (
@@ -7,31 +10,19 @@ type WasmModule = {
 }
 
 let wasmModule: WasmModule | null = null
-let wasmLoading: Promise<WasmModule | null> | null = null
-let wasmFailed = false
+let wasmLoading: Promise<void> | null = null
 
-export async function loadWasm(): Promise<WasmModule | null> {
-  if (wasmModule) return wasmModule
-  if (wasmFailed) return null
-  if (wasmLoading) return wasmLoading
+export function loadWasm(): void {
+  if (wasmModule || wasmLoading) return
 
   wasmLoading = (async () => {
     try {
-      // @ts-ignore — WASM module resolved at build time
-      const wasm = await import('sweet-subtitle-wasm')
-      await wasm.default()
-      wasmModule = {
-        gaussian_blur: wasm.gaussian_blur,
-        rasterize_drawing: wasm.rasterize_drawing,
-      }
-      return wasmModule
-    } catch {
-      wasmFailed = true
-      return null
+      await init()
+      wasmModule = { gaussian_blur, rasterize_drawing }
+    } catch (e) {
+      console.warn('[sweet-subtitle] WASM unavailable, using JS fallback', e)
     }
   })()
-
-  return wasmLoading
 }
 
 export function getWasm(): WasmModule | null {
@@ -42,26 +33,21 @@ export function isWasmAvailable(): boolean {
   return wasmModule !== null
 }
 
-export async function wasmGaussianBlur(
-  imageData: ImageData,
-  radius: number,
-): Promise<ImageData> {
-  const wasm = await loadWasm()
-  if (wasm) {
+export function wasmGaussianBlur(imageData: ImageData, radius: number): ImageData {
+  if (wasmModule) {
     const data = new Uint8Array(imageData.data.buffer)
-    wasm.gaussian_blur(data, imageData.width, imageData.height, radius)
+    wasmModule.gaussian_blur(data, imageData.width, imageData.height, radius)
     return imageData
   }
   return cssBlurFallback(imageData, radius)
 }
 
-export async function wasmRasterizeDrawing(
+export function wasmRasterizeDrawing(
   commands: string, scale: number, width: number, height: number,
   r: number, g: number, b: number, a: number,
-): Promise<Uint8Array | null> {
-  const wasm = await loadWasm()
-  if (wasm) {
-    return wasm.rasterize_drawing(commands, scale, width, height, r, g, b, a)
+): Uint8Array | null {
+  if (wasmModule) {
+    return wasmModule.rasterize_drawing(commands, scale, width, height, r, g, b, a)
   }
   return null
 }

@@ -7,9 +7,14 @@ export default defineConfig({
   resolve: {
     alias: {
       'sweet-subtitle': path.resolve(__dirname, '../packages/core/src'),
+      'sweet-subtitle-wasm': path.resolve(__dirname, '../packages/wasm/pkg/sweet_subtitle_wasm.js'),
     },
   },
   server: {
     port: 5180,
+  },
+  assetsInclude: ['**/*.wasm'],
+  optimizeDeps: {
+    exclude: ['sweet-subtitle-wasm'],
   },
 })
