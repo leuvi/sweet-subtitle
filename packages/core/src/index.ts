@@ -1,5 +1,5 @@
 export { SweetSubtitle } from './SweetSubtitle'
-export { parse, detectFormat, parseSRT, parseVTT, parseASS } from './parser'
+export { parse, detectFormat, parseSRT, parseVTT, parseASS, parseSBV, parseTTML } from './parser'
 export { decodeBuffer, detectEncoding } from './encoding'
 export type {
   SubtitleFormat,
@@ -12,6 +12,8 @@ export type {
   VTTCueSettings,
   VTTRegion,
   VTTTrack,
+  SBVTrack,
+  TTMLTrack,
   ASSColor,
   ASSStyle,
   ASSScriptInfo,

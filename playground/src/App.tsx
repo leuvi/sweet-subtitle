@@ -1,10 +1,11 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { SweetSubtitle, parse, decodeBuffer } from 'sweet-subtitle'
-import type { SubtitleTrack, ASSTrack } from 'sweet-subtitle'
+import type { ASSTrack } from 'sweet-subtitle'
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const subRef = useRef<SweetSubtitle | null>(null)
+  const lastContentRef = useRef<string>('')
   const [videoUrl, setVideoUrl] = useState('')
   const [subtitleName, setSubtitleName] = useState('')
   const [offset, setOffset] = useState(0)
@@ -19,26 +20,17 @@ export default function App() {
   const [activeCueCount, setActiveCueCount] = useState(0)
   const [error, setError] = useState('')
   const [dimVideo, setDimVideo] = useState(false)
+  const [wasmEnabled, setWasmEnabled] = useState(false)
+  const [showFps, setShowFps] = useState(false)
+  const [fps, setFps] = useState(0)
 
-  const handleVideoFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (videoUrl) URL.revokeObjectURL(videoUrl)
-    setVideoUrl(URL.createObjectURL(file))
-  }, [videoUrl])
-
-  const handleSubtitleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !videoRef.current) return
-
+  const mountSubtitle = useCallback((content: string, useWasm: boolean) => {
+    if (!videoRef.current) return
     setError('')
     setReady(false)
 
     try {
-      const buffer = await file.arrayBuffer()
-      const content = decodeBuffer(buffer)
       const track = parse(content)
-
       const info: typeof trackInfo = {
         format: track.format.toUpperCase(),
         cueCount: track.cues.length,
@@ -51,16 +43,66 @@ export default function App() {
       setTrackInfo(info)
 
       subRef.current?.destroy()
-      const sub = new SweetSubtitle(videoRef.current, { content })
+      const sub = new SweetSubtitle(videoRef.current, { content, enableWasm: useWasm })
       sub.on('ready', () => setReady(true))
       sub.on('error', (err) => setError(err.message))
       sub.on('cuechange', (cues) => setActiveCueCount(cues.length))
       subRef.current = sub
-      setSubtitleName(file.name)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     }
   }, [])
+
+  const handleVideoFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (videoUrl) URL.revokeObjectURL(videoUrl)
+    setVideoUrl(URL.createObjectURL(file))
+  }, [videoUrl])
+
+  const handleSubtitleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const buffer = await file.arrayBuffer()
+    const content = decodeBuffer(buffer)
+    lastContentRef.current = content
+    setSubtitleName(file.name)
+    mountSubtitle(content, wasmEnabled)
+  }, [wasmEnabled, mountSubtitle])
+
+  const toggleWasm = useCallback(() => {
+    const next = !wasmEnabled
+    setWasmEnabled(next)
+    if (lastContentRef.current) {
+      mountSubtitle(lastContentRef.current, next)
+    }
+  }, [wasmEnabled, mountSubtitle])
+
+  // FPS counter — only samples while enabled to avoid unnecessary updates.
+  useEffect(() => {
+    if (!showFps) {
+      setFps(0)
+      return
+    }
+
+    let rafId = 0
+    let frames = 0
+    let lastSample = performance.now()
+
+    const tick = () => {
+      frames++
+      const now = performance.now()
+      const elapsed = now - lastSample
+      if (elapsed >= 500) {
+        setFps(Math.round((frames * 1000) / elapsed))
+        frames = 0
+        lastSample = now
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [showFps])
 
   useEffect(() => {
     return () => {
@@ -74,6 +116,8 @@ export default function App() {
     if (visible) subRef.current?.show()
     else subRef.current?.hide()
   }, [visible])
+
+  const fpsColor = fps >= 55 ? 'text-emerald-400' : fps >= 30 ? 'text-yellow-400' : 'text-red-400'
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -89,7 +133,7 @@ export default function App() {
 
           <label className="flex items-center gap-2 px-4 py-2 bg-emerald-600 rounded-lg cursor-pointer hover:bg-emerald-700 transition text-sm font-medium">
             Subtitle
-            <input type="file" accept=".srt,.vtt,.ass,.ssa" onChange={handleSubtitleFile} className="hidden" />
+            <input type="file" accept=".srt,.vtt,.ass,.ssa,.sbv,.ttml,.dfxp" onChange={handleSubtitleFile} className="hidden" />
           </label>
 
           {subtitleName && (
@@ -137,6 +181,32 @@ export default function App() {
             Dim
           </button>
 
+          <button
+            onClick={toggleWasm}
+            className={`px-3 py-1 rounded text-sm transition font-mono ${
+              wasmEnabled ? 'bg-orange-600 hover:bg-orange-500' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+            title="Toggle WASM blur/drawing (reloads subtitle)"
+          >
+            WASM: {wasmEnabled ? 'ON' : 'OFF'}
+          </button>
+
+          <button
+            onClick={() => setShowFps(!showFps)}
+            className={`px-3 py-1 rounded text-sm transition font-mono ${
+              showFps ? 'bg-cyan-700 hover:bg-cyan-600' : 'bg-gray-700 hover:bg-gray-600'
+            }`}
+            title="Toggle FPS monitor"
+          >
+            FPS: {showFps ? 'ON' : 'OFF'}
+          </button>
+
+          {showFps && (
+            <span className={`px-2 py-1 bg-gray-900 rounded text-xs font-mono ${fpsColor}`}>
+              {fps} fps
+            </span>
+          )}
+
           {trackInfo && (
             <div className="flex gap-2 text-xs text-gray-500">
               <span className="px-2 py-0.5 bg-gray-800 rounded">{trackInfo.format}</span>
@@ -180,7 +250,7 @@ export default function App() {
         </div>
 
         <div className="mt-6 text-xs text-gray-600">
-          Supported formats: SRT, WebVTT, ASS/SSA (with advanced rendering)
+          Supported formats: SRT, WebVTT, ASS/SSA, SBV, TTML/DFXP (ASS with advanced rendering)
         </div>
       </div>
     </div>

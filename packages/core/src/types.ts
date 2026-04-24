@@ -1,4 +1,4 @@
-export type SubtitleFormat = 'srt' | 'vtt' | 'ass'
+export type SubtitleFormat = 'srt' | 'vtt' | 'ass' | 'sbv' | 'ttml'
 
 export interface SubtitleCue {
   id: string
@@ -46,6 +46,14 @@ export interface VTTTrack extends SubtitleTrack {
   format: 'vtt'
   regions?: VTTRegion[]
   styles?: string[]
+}
+
+export interface SBVTrack extends SubtitleTrack {
+  format: 'sbv'
+}
+
+export interface TTMLTrack extends SubtitleTrack {
+  format: 'ttml'
 }
 
 export interface ASSColor {
@@ -192,6 +200,8 @@ export interface SweetSubtitleOptions {
   format?: SubtitleFormat
   offset?: number
   enableWasm?: boolean
+  encoding?: string
+  fallbackEncodings?: string[]
 }
 
 export type SweetSubtitleEvent = 'ready' | 'cuechange' | 'error'

@@ -11,8 +11,14 @@ type WasmModule = {
 
 let wasmModule: WasmModule | null = null
 let wasmLoading: Promise<void> | null = null
+let wasmEnabled = false
+
+export function setWasmEnabled(enabled: boolean): void {
+  wasmEnabled = enabled
+}
 
 export function loadWasm(): void {
+  if (!wasmEnabled) return
   if (wasmModule || wasmLoading) return
 
   wasmLoading = (async () => {
@@ -26,15 +32,15 @@ export function loadWasm(): void {
 }
 
 export function getWasm(): WasmModule | null {
-  return wasmModule
+  return wasmEnabled ? wasmModule : null
 }
 
 export function isWasmAvailable(): boolean {
-  return wasmModule !== null
+  return wasmEnabled && wasmModule !== null
 }
 
 export function wasmGaussianBlur(imageData: ImageData, radius: number): ImageData {
-  if (wasmModule) {
+  if (wasmEnabled && wasmModule) {
     const data = new Uint8Array(imageData.data.buffer)
     wasmModule.gaussian_blur(data, imageData.width, imageData.height, radius)
     return imageData
@@ -46,7 +52,7 @@ export function wasmRasterizeDrawing(
   commands: string, scale: number, width: number, height: number,
   r: number, g: number, b: number, a: number,
 ): Uint8Array | null {
-  if (wasmModule) {
+  if (wasmEnabled && wasmModule) {
     return wasmModule.rasterize_drawing(commands, scale, width, height, r, g, b, a)
   }
   return null

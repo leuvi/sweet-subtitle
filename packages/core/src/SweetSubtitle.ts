@@ -4,6 +4,7 @@ import { BaseRenderer } from './renderer/base'
 import { TextRenderer } from './renderer/text'
 import { ASSRenderer } from './renderer/ass/index'
 import { decodeBuffer } from './encoding'
+import { setWasmEnabled } from './wasm/bridge'
 import type { ASSTrack } from './parser'
 
 export class SweetSubtitle {
@@ -11,6 +12,8 @@ export class SweetSubtitle {
   private renderer: BaseRenderer | null = null
   private track: SubtitleTrack | null = null
   private offset = 0
+  private encoding?: string
+  private fallbackEncodings?: string[]
   private rafId = 0
   private resizeObserver: ResizeObserver | null = null
   private listeners = new Map<string, Set<Function>>()
@@ -19,33 +22,47 @@ export class SweetSubtitle {
   constructor(video: HTMLVideoElement, options?: SweetSubtitleOptions) {
     this.video = video
     this.offset = options?.offset ?? 0
+    this.encoding = options?.encoding
+    this.fallbackEncodings = options?.fallbackEncodings
+    setWasmEnabled(options?.enableWasm ?? false)
 
     if (options?.content) {
-      this.loadContent(options.content, options.format)
+      void this.loadFromText(options.content, options.format)
     } else if (options?.src) {
-      this.loadURL(options.src, options.format)
+      void this.loadFromUrl(options.src, options.format)
     }
   }
 
-  private async loadURL(url: string, format?: SubtitleFormat): Promise<void> {
+  async loadFromUrl(url: string, format?: SubtitleFormat): Promise<void> {
     try {
       const response = await fetch(url)
       const buffer = await response.arrayBuffer()
-      const content = decodeBuffer(buffer)
+      const content = decodeBuffer(buffer, {
+        forceEncoding: this.encoding,
+        fallbackEncodings: this.fallbackEncodings,
+      })
       this.loadContent(content, format)
     } catch (err) {
-      this.emit('error', err instanceof Error ? err : new Error(String(err)))
+      const error = err instanceof Error ? err : new Error(String(err))
+      this.emit('error', error)
+      throw error
+    }
+  }
+
+  async loadFromText(content: string, format?: SubtitleFormat): Promise<void> {
+    try {
+      this.loadContent(content, format)
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      this.emit('error', error)
+      throw error
     }
   }
 
   private loadContent(content: string, format?: SubtitleFormat): void {
-    try {
-      this.track = parse(content, format)
-      this.setupRenderer()
-      this.emit('ready')
-    } catch (err) {
-      this.emit('error', err instanceof Error ? err : new Error(String(err)))
-    }
+    this.track = parse(content, format)
+    this.setupRenderer()
+    this.emit('ready')
   }
 
   private setupRenderer(): void {
@@ -96,7 +113,7 @@ export class SweetSubtitle {
   }
 
   setTrack(content: string, format?: SubtitleFormat): void {
-    this.loadContent(content, format)
+    void this.loadFromText(content, format)
   }
 
   setOffset(seconds: number): void {
@@ -115,11 +132,21 @@ export class SweetSubtitle {
     this.renderer?.syncSize()
   }
 
-  on<K extends keyof SweetSubtitleEventMap>(event: K, handler: SweetSubtitleEventMap[K]): void {
+  on<K extends keyof SweetSubtitleEventMap>(event: K, handler: SweetSubtitleEventMap[K]): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
     }
     this.listeners.get(event)!.add(handler)
+    return () => this.off(event, handler)
+  }
+
+  once<K extends keyof SweetSubtitleEventMap>(event: K, handler: SweetSubtitleEventMap[K]): () => void {
+    const onceHandler = ((...args: unknown[]) => {
+      this.off(event, onceHandler as SweetSubtitleEventMap[K])
+      ;(handler as Function)(...args)
+    }) as SweetSubtitleEventMap[K]
+
+    return this.on(event, onceHandler)
   }
 
   off<K extends keyof SweetSubtitleEventMap>(event: K, handler: SweetSubtitleEventMap[K]): void {
