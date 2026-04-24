@@ -272,6 +272,9 @@ pnpm run release:dry
 
 # Publish single package to npm (sweet-subtitle)
 pnpm run release
+
+# One-command publish (sync + check + build + dry-run + publish)
+pnpm run release:one
 ```
 
 > **Note:** This repo now publishes one npm package only: `sweet-subtitle`. React/Vue/Angular adapters are included as subpath exports (`sweet-subtitle/react`, `sweet-subtitle/vue`, `sweet-subtitle/angular`).

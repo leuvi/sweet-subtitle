@@ -5,9 +5,11 @@
     "build:wasm": "cd packages/wasm && wasm-pack build --target web && cd ../.. && node packages/core/scripts/setup-wasm.mjs",
     "build": "pnpm -F sweet-subtitle build",
     "test": "pnpm -F sweet-subtitle test",
+    "version:sync": "node scripts/sync-version.mjs",
     "publish:core": "pnpm -F sweet-subtitle publish --access public --no-git-checks",
     "release:dry": "pnpm -F sweet-subtitle publish --access public --dry-run --no-git-checks",
-    "release": "pnpm run publish:core"
+    "release": "pnpm run publish:core",
+    "release:one": "pnpm run version:sync && pnpm -F sweet-subtitle typecheck && pnpm -F sweet-subtitle build && pnpm run release:dry && pnpm run release"
   },
   "devDependencies": {
     "typescript": "~5.8.0"

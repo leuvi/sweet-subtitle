@@ -1,6 +1,6 @@
 {
   "name": "sweet-subtitle",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Subtitle renderer and parser for web video: ASS/SSA, SRT, WebVTT, SBV, TTML/DFXP with React/Vue/Angular adapters and WASM effects",
   "type": "module",
   "main": "./dist/index.cjs",
